@@ -1,0 +1,33 @@
+- hosts: localhost
+  become: true
+  tasks:
+  - name: Installing o python3, virtualenv
+    block:
+    - apt:
+      pkg:
+        - python3
+        - virtualenv
+      update_cache: yes
+  - name: Install AWS CLI
+    apt:
+      name: awscli
+      update_cache: yes
+      state: present
+  - name: Get SSH Key from AWS SSM
+    shell: |
+      SSH_KEY=$(aws ssm get-parameter --name "/project_name-api-ssh" --with-decryption --query "Parameter.Value" --output text --region eu-west-2)
+      echo "$SSH_KEY" > /home/ubuntu/.ssh/id_rsa
+      chmod 600 /home/ubuntu/.ssh/id_rsa
+      ssh-keyscan bitbucket.org >> /home/ubuntu/.ssh/known_hosts
+      chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa
+  - name: Git Clone
+    ansible.builtin.git:
+    repo:  "git@bitbucket.org:1000heads/project_name-api.git"
+    dest: /home/ubuntu/tcc
+    version: master
+  - name: Install Python packages from requirements.txt
+    pip:
+      requirements: /home/ubuntu/tcc/requirements.txt
+      virtualenv: /home/ubuntu/tcc/venv
+  - name: iniciando o servidor
+    shell: '. /home/ubuntu/tcc/venv/bin/activate; nohup uvicorn main:app --host 0.0.0.0 --port 8000 &'
